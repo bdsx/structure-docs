@@ -1,23 +1,21 @@
-# Exposing packets to JS
+# Exposing Packets to JS
 
-기본적으로 후킹은 기존 코드에 내가 원하는 코드를 실행하도록 하는 한 줄의 코드를 삽입하는 방식으로 진행됩니다. [코어 후킹](core.md)도 마찬가지입니다.\
-그리고 BDSX는 core에서 제공하는, JS에서 포인터를 통하여 실제 메모리에 접근하도록 하는 API를 이용해 후킹을 구현합니다.
+Basically, hooking involves inserting a line of code into the existing code to execute the desired logic. The same applies to [core hooking](core.md). BDSX implements hooking using an API provided by the core, allowing access to actual memory through pointers in JS.
 
-어셈블리 코드는 특별하지 않습니다. TS로 플러그인을 작성할 때처럼, 우리가 원하는 로직의 코드를 작성하면 됩니다. 단, 언어가 어셈블리일 뿐이죠.
+Assembly code is not special. As with writing plugins in TS, we write the logic we want, just in the assembly language.
 
-패킷 처리를 후킹하려면 패킷과 관련된 함수를 조작하면 됩니다.
-BDSX에서 후킹하는 함수는 다음과 같습니다.
+To hook packet processing, we manipulate functions related to packets. The functions hooked in BDSX are as follows:
 
 -   `NetworkSystem::_sortAndPacketize` - `events.packetRaw`, `events.packetBefore`, `events.packetAfter`
 -   `NetworkSystem::sendToMultiple`, `NetworkSystem::send`, `NetworkSystem::_sendInternal` - `events.packetSend`, `events.packetSendRaw`
 
-`NetworkSystem::_sortAndPacketize`는 서버가 클라이언트로부터 받은 패킷들을 처리하는 함수입니다. 이 함수를 후킹해서 `events.packetRaw`, `events.packetBefore`, `events.packetAfter`를 구현합니다.
+`NetworkSystem::_sortAndPacketize` is a function that handles packets received by the server from the client. This function is hooked to implement `events.packetRaw`, `events.packetBefore`, and `events.packetAfter`.
 
-`NetworkSystem::sendToMultiple`, `NetworkSystem::send`는 서버가 클라이언트로 패킷을 보내는 함수입니다. 이 함수를 후킹해서 `events.packetSend`를 구현합니다. BDS가 서버에 여러 명의 플레이어가 접속하면 `NetworkSystem::sendToMultiple`을, 그렇지 않으면 `NetworkSystem::send`를 사용하여 패킷을 보내므로 두 함수를 모두 후킹해야 합니다.\
-`NetworkSystem::_sendInternal`은 `events.packetSendRaw`를 구현하기 위해 후킹합니다.
+`NetworkSystem::sendToMultiple` and `NetworkSystem::send` are functions used to send packets from the server to the client. These functions are hooked to implement `events.packetSend`. Since BDS uses `NetworkSystem::sendToMultiple` if multiple players are connected to the server and `NetworkSystem::send` if not, both functions must be hooked.\
+`NetworkSystem::_sendInternal` is hooked to implement `events.packetSendRaw`.
 
-어떤 패킷이든 서버가 클라이언트로부터 패킷을 받을 때마다 무조건 `events.packetRaw`, `events.packetBefore`, `events.packetAfter`를 이 순서대로 모두 거칩니다. 그리고 이에 대한 테스트 코드가 `example_and_test/test.ts`에 작성됐습니다.\
-물론 항상 JS의 콜백을 거치는 것은 아닙니다. 성능 이슈로 정확히는 `events.packet*`이 아니라 후술할 어셈블리 코드를 거치며 여기서 필요 없는 패킷은 거릅니다.
+Every time any packet is received by the server from the client, it goes through `events.packetRaw`, `events.packetBefore`, and `events.packetAfter` in that order. The test code for this is written in `example_and_test/test.ts`.\
+Of course, not all packets always go through JS callbacks. Due to performance issues, packets pass through the assembly code described later, filtering out unnecessary packets.
 
 ```ts
 // example_and_test\test.ts
@@ -60,7 +58,7 @@ packetEvents() {
 
 ## Packet Filtering
 
-모든 패킷에 대해 스크립트를 실행하기엔 성능에 부담이 되므로 콜백이 등록된 패킷에 대해서만 이벤트를 처리하도록 해야 합니다. 그리고 이는 `enabledPacket`이라는 배열과 비트 플래그를 통해 구현됩니다.
+Running scripts for all packets would be a performance burden, so events should be processed only for packets with registered callbacks. This is implemented using an array called `enabledPacket` and bit flags.
 
 ```asm
 ; bdsx\asm\asmcode.asm
@@ -73,10 +71,10 @@ const enabledPacket = asmcode.addressof_enabledPacket;
 enabledPacket.fill(0, PACKET_ID_COUNT);
 ```
 
-`enabledPacket`은 256 길이의 BYTE 배열이며 `enabledPacket[i]`는 패킷 아이디(`enum MinecraftPacketIds`) 가 `i`인 패킷으로 등록된 콜백에 대한 정보입니다.
+`enabledPacket` is a BYTE array of length 256, and `enabledPacket[i]` contains information about registered callbacks for the packet with ID `i` (`enum MinecraftPacketIds`).
 
-패킷 이벤트 콜백의 종류는 `Raw`, `Before`, `After`, `Send`, `SendRaw` 총 5가지이며 각각에 대한 비트 플래그는 `const bit = 1 << PacketEvnetType.Before`와 같은 방식으로 변환하여 사용합니다. 즉, 각 이벤트에 대한 플래그는 `0b1`, `0b10`, `0b100`, `0b1000`, `0b10000` 입니다.\
-ex) `TextPacket`이 `events.packetBefore`, `events.packetSend`만을 사용한다면 `enabledPacket[9] = 0b00001010`이 됩니다.
+There are five types of packet events: `Raw`, `Before`, `After`, `Send`, and `SendRaw`, each converted to a bit flag by the method like `const bit = 1 << PacketEventType.Before`. So each event's flag is `0b1`, `0b10`, `0b100`, `0b1000`, `0b10000`.\
+For example, if `TextPacket` uses only `events.packetBefore` and `events.packetSend`, `enabledPacket[9] = 0b00001010`.
 
 ```ts
 // bdsx\event.ts
@@ -102,19 +100,19 @@ export enum PacketEventType {
     ; ...
 ```
 
-지금은 `eax` 레지스터에 packet id가 저장된 상황입니다. `byte ptr[rax+r10]`이 `enabledPacket[id]`와 동치인 상황이고 이를 `al` 레지스터에 저장한 후, `0x08`로 `test`를 수행합니다. `test` 명령어는 두 피연산자에 대해 `AND` 연산을 수행하고 `0x08` == `0b1000` 이므로, 이 코드는 들어온 패킷이 `events.packetSend`를 사용하고 있지 않다면 `_pass` 영역으로 `jump`하여 스크립트가 아닌 원래 코드를 실행하게 됩니다. 실제로 `asmcode.asm`에 있는 `packetSendAllHook` 코드의 일부이며, `packetRawHook`, `packetBeforeHook`... 도 같은 원리입니다.
+Currently, the `eax` register stores the packet ID. `byte ptr[rax+r10]` is equivalent to `enabledPacket[id]`, and the result is stored in the `al` register. The operation `test` is performed with `0x08`. The `test` instruction performs an `AND` operation between the two operands. Since `0x08` equals `0b1000`, this code jumps to the `_pass` section if the incoming packet isn't used in `events.packetSend`, executing the original code instead of the scripts. This is part of the `packetSendAllHook` code in `asmcode.asm`, and the same principle applies to `packetRawHook`, `packetBeforeHook`, etc.
 
-## Hooking the packet process
+## Hooking the Packet Process
 
-In the hook original codes should be executed. you can just copy-paste the assembly codes of the part used to patch (`procHacker.patching`).
+In the hook, original codes should be executed. You can just copy-paste the assembly codes of the part used to patch(`procHacker.patching`).
 
 ### packetRawHook
 
-1. 클라이언트의 `NetworkConnection` 인스턴스를 `lastSenderNetId`에 저장함. 다른 패킷 이벤트에서 이걸 불러와서 주체를 결정함.
-2. 이후에 전술한 패킷 필터링을 수행함.
-3. 그후 `onPacketRaw`라는, JS로 작성된 함수를 호출하여 스크립트를 실행하거나 원래 실행해야할 코드인 `createPacketRaw`를 실행함.
-4. `packetRawHook`의 경우 실행해야할 original code는 `createPacketRaw`를 호출하는 것인데, 이는 `onPacketRaw`에서 실행하거나 `onPacketRaw`를 스킵하고 original code를 실행함.
-5. `packetRawHook`에서 이벤트 취소는 `null`을 반환하여 패킷 생성을 실패로 만드는 방식으로 `onPacketRaw`에서 구현됨.
+1. Store the `NetworkConnection` instance of the client in `lastSenderNetId`. Other packet events use this to recognize the sender.
+2. Do the packet filtering described earlier.
+3. Call `onPacketRaw`, a function written in JS, to execute the script or execute the original code `createPacketRaw`.
+4. For `packetRawHook`, the original code to be executed is calling `createPacketRaw`, which is either done in `onPacketRaw` or by skipping `onPacketRaw` to execute the original code.
+5. In `packetRawHook`, event cancellation is implemented by making `onPacketRaw` return `null`, failing to create a packet.
 
 ```asm
 ; bdsx\asm\asmcode.asm
@@ -145,12 +143,10 @@ endp
 
 ### packetBeforeHook
 
-1. 일단 original code를 실행함.
-2. 이후에 전술한 패킷 필터링을 수행함.
-3. 그후 `onPacketBefore`라는, JS로 작성된 함수를 호출하여 스크립트를 실행함.
-4. `packetBeforeHook`에서 이벤트 취소는 직접 return address를 조작하는 방식을 수행되고 이는 `onPacketBefore`에 구현되어 있음.
-
--   `mov [rbp+0x280], 0x1` : It seems related to handling errors in BDS. whatever the real cause, the line works sucessfully. The offset (0x280) can be changed in the new version.
+1. Execute the original code first.
+2. Do the packet filtering described earlier.
+3. Call `onPacketBefore`, a function written in JS, to execute the script.
+4. Event cancellation in `packetBeforeHook` manipulates the return address directly, implemented in `onPacketBefore`.
 
 ```asm
 ; bdsx\asm\asmcode.asm
@@ -180,10 +176,10 @@ endp
 
 ### packetAfterHook
 
-1. 일단 original code를 실행함.
-2. 이후에 전술한 패킷 필터링을 수행함.
-3. 그후 `onPacketAfter`라는, JS로 작성된 함수를 호출하여 스크립트를 실행함.
-4. `packetAfter`는 BDS에서 이미 패킷을 받은 후에 실행되기 때문에 이벤트 취소를 수행하는 건 다른 이벤트 콜백을 실행하지 않는 것으로 그침.
+1. Execute the original code first.
+2. Do the packet filtering described earlier.
+3. Call `onPacketAfter`, a function written in JS, to execute the script.
+4. Since `packetAfter` is executed after the packet has already been received by BDS, event cancellation means simply not executing other callbacks.
 
 ```asm
 ; bdsx\asm\asmcode.asm
@@ -218,9 +214,9 @@ endp
 
 ### packetSendHook
 
-1. 전술한 패킷 필터링을 수행함.
-2. 그후 `onPacketSend`라는, JS로 작성된 함수를 호출하여 스크립트를 실행함. 이때 `onPacketSend`를 호출하는 데 사용할 레지스터에 있는 값들을 호출 전에 스택에 백업한 후, 호출하고 나서 복구함.
-3. 그리고 `onPacketSend`가 반환하는 이벤트 취소 여부에 따라 original code를 실행하거나 그냥 이벤트를 끝냄.
+1. Do the packet filtering described earlier.
+2. Call `onPacketSend`, a function written in JS, to execute the script. the values ​​in the registers used to call it are backed up on the stack before the call, and then restored after the call.
+3. Depending on whether the event is canceled which `onPacketSend` returns, executes the original codes or ends the event.
 
 ```asm
 ; bdsx\asm\asmcode.asm
@@ -261,9 +257,9 @@ endp
 
 ### packetSendAllHook
 
-1. 전술한 패킷 필터링을 수행함.
-2. 그후 `onPacketSend`라는, JS로 작성된 함수를 호출하여 스크립트를 실행함.
-3. 그리고 `onPacketSend`가 반환하는 이벤트 취소 여부에 따라 original code를 실행하거나 그냥 이벤트를 끝냄.
+1. Do the packet filtering described earlier.
+2. Call `onPacketSend`, a function written in JS, to execute the script.
+3. Depending on whether the event is canceled which `onPacketSend` returns, executes the original codes or ends the event.
 
 ```asm
 export def sendInternalOriginal:qword
@@ -308,9 +304,9 @@ endp
 
 ### packetSendInternalHook
 
-1. 전술한 패킷 필터링을 수행함.
-2. 그후 `onPacketSendInternal` 이라는, JS로 작성된 함수를 호출하여 스크립트를 실행함. 이때 `onPacketSendInternal`를 호출하는 데 사용할 레지스터에 있는 값들을 스택에 백업한 후, 호출하고 나서 복구함.
-3. 그리고 `onPacketSendInternal`이 반환하는 이벤트 취소 여부에 따라 original code를 실행하거나 그냥 이벤트를 끝냄.
+1. Do the packet filtering described earlier.
+2. Call `onPacketSendInternal`, a function written in JS, to execute the script. the values ​​in the registers used to call it are backed up on the stack before the call, and then restored after the call.
+3. Depending on whether the event is canceled which `onPacketSendInternal` returns, executes the original codes or ends the event.
 
 ```asm
 export def onPacketSendInternal:qword
