@@ -106,12 +106,15 @@ export enum PacketEventType {
 
 ## Hooking the packet process
 
+In the hook original codes should be executed. you can just copy-paste the assembly codes of the part used to patch (`procHacker.patching`).
+
 ### packetRawHook
 
-1. `lastSenderNetId`에 저장함. 다른 패킷 이벤트에서 이걸 불러와서 주체를 결정함
-2. 이후에 전술한 패킷 필터링을 수행함
+1. 클라이언트의 `NetworkConnection` 인스턴스를 `lastSenderNetId`에 저장함. 다른 패킷 이벤트에서 이걸 불러와서 주체를 결정함.
+2. 이후에 전술한 패킷 필터링을 수행함.
 3. 그후 `onPacketRaw`라는, JS로 작성된 함수를 호출하여 스크립트를 실행하거나 원래 실행해야할 코드인 `createPacketRaw`를 실행함.
-4. `packetRawHook`의 경우 실행해야할 original code는 `createPacketRaw`를 호출하는 것인데, 이는 `onPacketRaw`에서 실행하거나 `onPacketRaw`를 스킵하고 original code를 실행함
+4. `packetRawHook`의 경우 실행해야할 original code는 `createPacketRaw`를 호출하는 것인데, 이는 `onPacketRaw`에서 실행하거나 `onPacketRaw`를 스킵하고 original code를 실행함.
+5. `packetRawHook`에서 이벤트 취소는 `null`을 반환하여 패킷 생성을 실패로 만드는 방식으로 `onPacketRaw`에서 구현됨.
 
 ```asm
 ; bdsx\asm\asmcode.asm
@@ -142,9 +145,12 @@ endp
 
 ### packetBeforeHook
 
-1. 일단 오리지널 코드를 실행함. 이 오리지널 코드는 patch하느라 사용한 부분의 어셈블리 코드를 그대로 복붙하면 됨.
-2. 이후에 전술한 패킷 필터링을 수행함
-3. 그후 `onPacketBefore`라는, JS로 작성된 함수를 호출하여 스크립트를 실행함
+1. 일단 original code를 실행함.
+2. 이후에 전술한 패킷 필터링을 수행함.
+3. 그후 `onPacketBefore`라는, JS로 작성된 함수를 호출하여 스크립트를 실행함.
+4. `packetBeforeHook`에서 이벤트 취소는 직접 return address를 조작하는 방식을 수행되고 이는 `onPacketBefore`에 구현되어 있음.
+
+-   `mov [rbp+0x280], 0x1` : It seems related to handling errors in BDS. whatever the real cause, the line works sucessfully. The offset (0x280) can be changed in the new version.
 
 ```asm
 ; bdsx\asm\asmcode.asm
@@ -174,9 +180,10 @@ endp
 
 ### packetAfterHook
 
-1. original code를 실행함
-2. 이후에 전술한 패킷 필터링을 수행함
-3. 그후 `onPacketAfter`라는, JS로 작성된 함수를 호출하여 스크립트를 실행함
+1. 일단 original code를 실행함.
+2. 이후에 전술한 패킷 필터링을 수행함.
+3. 그후 `onPacketAfter`라는, JS로 작성된 함수를 호출하여 스크립트를 실행함.
+4. `packetAfter`는 BDS에서 이미 패킷을 받은 후에 실행되기 때문에 이벤트 취소를 수행하는 건 다른 이벤트 콜백을 실행하지 않는 것으로 그침.
 
 ```asm
 ; bdsx\asm\asmcode.asm
@@ -211,8 +218,8 @@ endp
 
 ### packetSendHook
 
-1. 전술한 패킷 필터링을 수행함
-2. 그후 `onPacketSend`라는, JS로 작성된 함수를 호출하여 스크립트를 실행함. 이때 `onPacketSend`를 호출하는 데 사용할 레지스터에 있는 값들을 스택에 백업한 후, 호출하고 나서 다시 레지스터에 저장함.
+1. 전술한 패킷 필터링을 수행함.
+2. 그후 `onPacketSend`라는, JS로 작성된 함수를 호출하여 스크립트를 실행함. 이때 `onPacketSend`를 호출하는 데 사용할 레지스터에 있는 값들을 스택에 백업한 후, 호출하고 나서 복구함.
 3. 그리고 `onPacketSend`가 반환하는 이벤트 취소 여부에 따라 original code를 실행하거나 그냥 이벤트를 끝냄.
 
 ```asm
@@ -254,7 +261,7 @@ endp
 
 ### packetSendAllHook
 
-1. 전술한 패킷 필터링을 수행함
+1. 전술한 패킷 필터링을 수행함.
 2. 그후 `onPacketSend`라는, JS로 작성된 함수를 호출하여 스크립트를 실행함.
 3. 그리고 `onPacketSend`가 반환하는 이벤트 취소 여부에 따라 original code를 실행하거나 그냥 이벤트를 끝냄.
 
@@ -301,8 +308,8 @@ endp
 
 ### packetSendInternalHook
 
-1. 전술한 패킷 필터링을 수행함
-2. 그후 `onPacketSendInternal` 이라는, JS로 작성된 함수를 호출하여 스크립트를 실행함. 이때 `onPacketSendInternal`를 호출하는 데 사용할 레지스터에 있는 값들을 스택에 백업한 후, 호출하고 나서 다시 레지스터에 저장함.
+1. 전술한 패킷 필터링을 수행함.
+2. 그후 `onPacketSendInternal` 이라는, JS로 작성된 함수를 호출하여 스크립트를 실행함. 이때 `onPacketSendInternal`를 호출하는 데 사용할 레지스터에 있는 값들을 스택에 백업한 후, 호출하고 나서 복구함.
 3. 그리고 `onPacketSendInternal`이 반환하는 이벤트 취소 여부에 따라 original code를 실행하거나 그냥 이벤트를 끝냄.
 
 ```asm

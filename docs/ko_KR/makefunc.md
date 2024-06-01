@@ -56,14 +56,14 @@ procHacker.patching(
 );
 ```
 
-| parameter name | used value              | description                                                                                      |
-| -------------- | ----------------------- | ------------------------------------------------------------------------------------------------ |
-| `subject`      | "hook-packet-after"     | You can treat this as just a tag or label for debugging                                          |
-| `key`          | packetizeSymbol         | It's the symbol of target function to hook                                                       |
-| `offset`       | 0x7b2                   | It's offset to hook the target. sometimes we want to change only parts of the functions.         |
-| `newCode`      | asmcode.packetAfterHook | It's the new code to use.                                                                        |
-| `tempRegister` | Register.rdx            | It's the temp register to use when call the function. used with `jmp` or `call`.                 |
-| `call`         | true                    | If this is true, `call` operation is used, if false then `jmp` is used.                          |
-| `originalCode` | [...]                   | Before patching, checks the memory with this value. if they are unmatched then stop the process. |
+| parameter name | used value              | description                                                                                       |
+| -------------- | ----------------------- | ------------------------------------------------------------------------------------------------- |
+| `subject`      | "hook-packet-after"     | You can treat this as just a tag or label for debugging                                           |
+| `key`          | packetizeSymbol         | It's the symbol of target function to hook                                                        |
+| `offset`       | 0x7b2                   | It's offset to hook the target. sometimes we want to change only parts of the functions.          |
+| `newCode`      | asmcode.packetAfterHook | It's the new code to use.                                                                         |
+| `tempRegister` | Register.rdx            | It's the temp register to use when call the function. used with `jmp` or `call`.                  |
+| `call`         | true                    | If this is true, `call` operation is used, if false then `jmp` is used.                           |
+| `originalCode` | [...]                   | Before patching, checks the memory with this value. if they are unmatched then stops the process. |
 
 `origianCode` is replaced with `newCode`. so we may need to run the original code manually in `newCode`.
