@@ -87,7 +87,7 @@ export enum PacketEventType {
 }
 ```
 
-다음은 어셈블리에서 `packet*Hook`에 공통으로 적용되는 알고리즘 입니다.
+The following code is an algorithm applied commonly in the assembly for `packet*Hook`.
 
 ```asm
 ; bdsx\asm\asmcode.asm
