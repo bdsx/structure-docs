@@ -15,11 +15,11 @@
 
 ## procHacker.js, procHacker.np
 
-`procHacker.js`, `procHacker.np` 각각 `makefunc.js`, `makefunc.np`와 목적과 역할이 같습니다. 다만 `procHacker`는 `makefunc`보다 더 노출되는 API 입니다.
+`procHacker.js`, `procHacker.np` 각각 `makefunc.js`, `makefunc.np`와 목적과 역할이 같습니다. 다만 `procHacker`는 `makefunc`보다 더 노출되는 API입니다.
 
 ## procHacker.patching
 
-다음은 `procHacker.patching`의 시그니쳐 입니다.
+다음은 `procHacker.patching`의 시그니쳐입니다.
 
 ```ts
 // based on part of bdsx\prochacker.ts
@@ -35,7 +35,7 @@ patching(
     ): void
 ```
 
-다음은 사용 예시 입니다.
+다음은 사용 예시입니다.
 
 ```ts
 // bdsx\event_impl\packetevent.ts
