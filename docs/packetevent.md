@@ -102,6 +102,27 @@ export enum PacketEventType {
 
 Currently, the `eax` register stores the packet ID. `byte ptr[rax+r10]` is equivalent to `enabledPacket[id]`, and the result is stored in the `al` register. The operation `test` is performed with `0x08`. The `test` instruction performs an `AND` operation between the two operands. Since `0x08` equals `0b1000`, this code jumps to the `_pass` section if the incoming packet isn't used in `events.packetSend`, executing the original code instead of the scripts. This is part of the `packetSendAllHook` code in `asmcode.asm`, and the same principle applies to `packetRawHook`, `packetBeforeHook`, etc.
 
+## Structure of Stack
+
+`rbp` register represents the base of the current stack frame, and `NetworkSystem::_sortAndPacketizeEvents` accesses to some values through `rbp`. the structure is defined as `OnPacketRBP` class.
+
+```ts
+// bdsx\event_impl\packetevent.ts
+@nativeClass(null)
+class OnPacketRBP extends AbstractClass {
+    // NetworkSystem::_sortAndPacketizeEvents before MinecraftPackets::createPacket
+    @nativeField(int32_t, 0x1a0)
+    packetId: MinecraftPacketIds;
+    // NetworkSystem::_sortAndPacketizeEvents before MinecraftPackets::createPacket
+    @nativeField(CxxSharedPtr.make(Packet), 0x1a8)
+    packet: CxxSharedPtr<Packet>; // NetworkSystem::_sortAndPacketizeEvents before MinecraftPackets::createPacket
+    @nativeField(ReadOnlyBinaryStream, 0x260)
+    stream: ReadOnlyBinaryStream; // after NetworkConnection::receivePacket
+}
+```
+
+`0x1a0`, `0x1a8` is also used in assembly code: [packetRawHook](#packetrawhook), [packetBeforeHook](#packetbeforehook), [packetAfterHook](#packetafterhook)
+
 ## Hooking the Packet Process
 
 In the hook, original codes should be executed. You can just copy-paste the assembly codes of the part used to patch(`procHacker.patching`).

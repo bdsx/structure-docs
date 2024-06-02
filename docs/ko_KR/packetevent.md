@@ -104,6 +104,27 @@ export enum PacketEventType {
 
 지금은 `eax` 레지스터에 packet id가 저장된 상황입니다. `byte ptr[rax+r10]`이 `enabledPacket[id]`와 동치인 상황이고 이를 `al` 레지스터에 저장한 후, `0x08`로 `test`를 수행합니다. `test` 명령어는 두 피연산자에 대해 `AND` 연산을 수행하고 `0x08` == `0b1000` 이므로, 이 코드는 들어온 패킷이 `events.packetSend`를 사용하고 있지 않다면 `_pass` 영역으로 `jump`하여 스크립트가 아닌 원래 코드를 실행하게 됩니다. 실제로 `asmcode.asm`에 있는 `packetSendAllHook` 코드의 일부이며, `packetRawHook`, `packetBeforeHook`... 도 같은 원리입니다.
 
+## Structure of Stack
+
+`rbp` 레지스터는 현재 스택 프레임의 시작 주소를 나타냅니다. `NetworkSystem::_sortAndPacketizeEvents`가 `rbp`를 통해서 값에 접근하고, 그 구조가 `OnPacketRBP`에 정의되어 있습니다.
+
+```ts
+// bdsx\event_impl\packetevent.ts
+@nativeClass(null)
+class OnPacketRBP extends AbstractClass {
+    // NetworkSystem::_sortAndPacketizeEvents before MinecraftPackets::createPacket
+    @nativeField(int32_t, 0x1a0)
+    packetId: MinecraftPacketIds;
+    // NetworkSystem::_sortAndPacketizeEvents before MinecraftPackets::createPacket
+    @nativeField(CxxSharedPtr.make(Packet), 0x1a8)
+    packet: CxxSharedPtr<Packet>; // NetworkSystem::_sortAndPacketizeEvents before MinecraftPackets::createPacket
+    @nativeField(ReadOnlyBinaryStream, 0x260)
+    stream: ReadOnlyBinaryStream; // after NetworkConnection::receivePacket
+}
+```
+
+`0x1a0`, `0x1a8`은 어셈블리쪽에서도 쓰이는 값들입니다: [packetRawHook](#packetrawhook), [packetBeforeHook](#packetbeforehook), [packetAfterHook](#packetafterhook)
+
 ## Hooking the packet process
 
 In the hook original codes should be executed. you can just copy-paste the assembly codes of the part used to patch (`procHacker.patching`).
