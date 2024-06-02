@@ -1,25 +1,24 @@
 # makefunc
 
-`makefunc`는 BDSX에 구현된 JS에서 네이티브 함수를 사용하기 위한 모듈입니다.
-`procHacker`의 함수들은 내부적으로 `makefunc.np`, `makefunc.js`을 통해 구현됩니다.
+`makefunc` is a module in BDSX designed to enable the use of native functions in JS. The functions in `procHacker` are internally implemented using `makefunc.np` and `makefunc.js`.
 
 ## makefunc.js
 
-`makefunc.js`는 네이티브 함수를 JS 함수로 만들어주는 함수입니다.
+`makefunc.js` converts native functions into JS functions.
 
 ## makefunc.np
 
-`makefunc.np`는 JS 함수를 네이티브 함수로 만들어주는 함수입니다.
+`makefunc.js` converts JS functions into native functions.
 
 # procHacker
 
 ## procHacker.js, procHacker.np
 
-`procHacker.js`, `procHacker.nps`는 각각 `makefunc.js`, `makefunc.np`와 목적과 역할이 같습니다. 다만 `procHacker`는 `makefunc`보다 더 노출되는 API입니다.
+`procHacker.js` and `procHacker.np` serve the same purpose and role as `makefunc.js` and `makefunc.np`, respectively. However, procHacker is a more exposed API compared to makefunc.
 
 ## procHacker.patching
 
-다음은 `procHacker.patching`의 시그니쳐입니다.
+Below is the signature for `procHacker.patching`.
 
 ```ts
 // based on part of bdsx\prochacker.ts
@@ -31,11 +30,11 @@ patching(
         tempRegister: Register,
         call: boolean,
         originalCode: (number | null)[],
-        ignoreAreaOrOpts?: number[] | ProcHackerPatchOptions, // deprecated
+        ignoreAreaOrOpts?: number[] | ProcHackerPatchOptions, //  deprecated
     ): void
 ```
 
-다음은 사용 예시입니다.
+Here is an example.
 
 ```ts
 // bdsx\event_impl\packetevent.ts
