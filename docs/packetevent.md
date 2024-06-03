@@ -1,6 +1,6 @@
 # Exposing Packets to JS
 
-Basically, hooking involves inserting a line of code into the existing code to execute the desired logic. The same applies to [core hooking](core.md). BDSX implements hooking using an API provided by the core, allowing access to actual memory through pointers in JS.
+Basically, hooking is done by inserting a line of code into the existing code to execute the logic we want. The same applies to [core hooking](core.md). BDSX implements hooking using an API provided by the core, allowing access to actual memory through pointers in JS.
 
 Assembly code is not special. As with writing plugins in TS, we write the logic we want, just in the assembly language.
 
